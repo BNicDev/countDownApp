@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from './supabaseClient'; // Importamos el cliente
 import { useCountdown } from './hooks/useCountdown';
 import { CountdownDisplay } from './components/CountdownDisplay';
 import { ProgressBar } from './components/ProgressBar';
@@ -12,22 +13,24 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/events')
-      .then((res) => res.json())
-      .then((data) => {
+    const traerEventos = async () => {
+      const { data, error } = await supabase
+        .from('eventos_compartidos')
+        .select('*')
+        .order('ts', { ascending: true });
+
+      if (!error && data) {
         setEventos(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Error cargando eventos:", err);
-        setLoading(false);
-      });
+      }
+      setLoading(false);
+    };
+
+    traerEventos();
   }, []);
 
-  // Evento activo por defecto mientras carga o si está vacío
   const eventoActivo = eventos[activeIdx] || { 
     ts: new Date('2026-12-25T00:00:00').getTime(), 
-    name: 'Cargando evento...', 
+    name: 'Cargando...', 
     date: '-', 
     color: '#534AB7' 
   };
@@ -35,25 +38,29 @@ function App() {
   const { tiempo, progresoAnio } = useCountdown(eventoActivo.ts);
 
   const handleAddEvent = async (nuevoEvento) => {
-    try {
-      const response = await fetch('/api/events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nuevoEvento),
-      });
-      
-      const listaActualizada = await response.json();
+    const { data, error } = await supabase
+      .from('eventos_compartidos')
+      .insert([
+        { 
+          name: nuevoEvento.name, 
+          ts: nuevoEvento.ts, 
+          date: nuevoEvento.date, 
+          color: nuevoEvento.color 
+        }
+      ])
+      .select();
+
+    if (!error && data) {
+      const listaActualizada = [...eventos, data[0]];
       setEventos(listaActualizada);
       setActiveIdx(listaActualizada.length - 1);
-    } catch (error) {
-      console.error("Error al guardar el evento:", error);
     }
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center font-sans">
-        <p className="text-sm font-mono animate-pulse">Sincronizando con la base de datos...</p>
+        <p className="text-sm font-mono animate-pulse">Conectando con Supabase gratis...</p>
       </div>
     );
   }
@@ -64,7 +71,7 @@ function App() {
         
         <div className="text-center">
           <p className="text-[11px] font-bold tracking-[0.15em] uppercase text-neutral-500 mb-1.5">
-            Próximo evento compartido
+            Panel Global Compartido
           </p>
           <h1 className="text-2xl font-extrabold text-neutral-100 tracking-tight">
             {eventoActivo.name}
@@ -80,7 +87,7 @@ function App() {
         {eventos.length > 0 ? (
           <EventList eventos={eventos} activeIdx={activeIdx} onSelectEvent={setActiveIdx} />
         ) : (
-          <p className="text-xs font-mono text-neutral-500 my-4 text-center">No hay eventos compartidos. ¡Agregá el primero!</p>
+          <p className="text-xs font-mono text-neutral-500 my-4 text-center">No hay eventos. ¡Agregá el primero!</p>
         )}
 
         <button 
