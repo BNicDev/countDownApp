@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './supabaseClient'; // Importamos el cliente
+import { supabase } from './supabaseClient';
 import { useCountdown } from './hooks/useCountdown';
 import { CountdownDisplay } from './components/CountdownDisplay';
 import { ProgressBar } from './components/ProgressBar';
@@ -30,7 +30,7 @@ function App() {
 
   const eventoActivo = eventos[activeIdx] || { 
     ts: new Date('2026-12-25T00:00:00').getTime(), 
-    name: 'Cargando...', 
+    name: 'Sin eventos', 
     date: '-', 
     color: '#534AB7' 
   };
@@ -57,10 +57,31 @@ function App() {
     }
   };
 
+  const handleDeleteEvent = async (idParaBorrar, indexEnLista) => {
+    const { error } = await supabase
+      .from('eventos_compartidos')
+      .delete()
+      .eq('id', idParaBorrar); 
+
+    if (!error) {
+      const listaFiltrada = eventos.filter(ev => ev.id !== idParaBorrar);
+      setEventos(listaFiltrada);
+      if (activeIdx >= listaFiltrada.length) {
+        setActiveIdx(Math.max(0, listaFiltrada.length - 1));
+      } else if (activeIdx === indexEnLista) {
+        setActiveIdx(0);
+      } else if (indexEnLista < activeIdx) {
+        setActiveIdx(activeIdx - 1);
+      }
+    } else {
+      console.error("Error al borrar de Supabase:", error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center font-sans">
-        <p className="text-sm font-mono animate-pulse">Conectando con Supabase gratis...</p>
+        <p className="text-sm font-mono animate-pulse">Conectando con la base de datos...</p>
       </div>
     );
   }
@@ -85,7 +106,12 @@ function App() {
         <ProgressBar porcentaje={progresoAnio} color={eventoActivo.color} />
         
         {eventos.length > 0 ? (
-          <EventList eventos={eventos} activeIdx={activeIdx} onSelectEvent={setActiveIdx} />
+          <EventList 
+            eventos={eventos} 
+            activeIdx={activeIdx} 
+            onSelectEvent={setActiveIdx} 
+            onDeleteEvent={handleDeleteEvent} 
+          />
         ) : (
           <p className="text-xs font-mono text-neutral-500 my-4 text-center">No hay eventos. ¡Agregá el primero!</p>
         )}
